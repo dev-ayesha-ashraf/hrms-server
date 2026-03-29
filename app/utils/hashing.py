@@ -1,7 +1,8 @@
 from passlib.context import CryptContext
 
-# tells passlib to use bcrypt as the hashing algorithm
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Use bcrypt_sha256 to avoid bcrypt's 72-byte input limit.
+# Keep plain bcrypt for backward compatibility with any existing hashes.
+pwd_context = CryptContext(schemes=["bcrypt_sha256", "bcrypt"], deprecated="auto")
 
 
 def hash_password(plain_password: str) -> str:

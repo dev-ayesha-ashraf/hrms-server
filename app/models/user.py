@@ -20,5 +20,5 @@ class User(Base):
     name = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    role = Column(Enum(UserRole), default=UserRole.employee, nullable=False)
+    role = Column(Enum(UserRole, native_enum=False), default=UserRole.employee, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
