@@ -15,7 +15,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 load_dotenv()
 
 from app.database import Base
-from app.models import user  # import your models so alembic can see them
+from app.models import user
+from app.models import employee    # ← ADD
+from app.models import department  # ← ADD
 
 target_metadata = Base.metadata
 

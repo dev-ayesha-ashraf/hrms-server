@@ -57,3 +57,90 @@ def seed_users():
 
 if __name__ == "__main__":
     seed_users()
+
+    from app.models.employee import Employee, EmploymentStatus
+from app.models.department import Department
+from datetime import date
+
+
+def seed_departments(db):
+    departments = [
+        {"name": "Engineering", "description": "Software and infrastructure"},
+        {"name": "Human Resources", "description": "People operations"},
+        {"name": "Finance", "description": "Accounting and payroll"},
+    ]
+    created = []
+    for dept_data in departments:
+        existing = db.query(Department).filter(
+            Department.name == dept_data["name"]
+        ).first()
+        if existing:
+            print(f"  skipping department {dept_data['name']} — already exists")
+            created.append(existing)
+            continue
+        dept = Department(**dept_data)
+        db.add(dept)
+        db.flush()  # flush to get the id without committing
+        created.append(dept)
+        print(f"  created department: {dept_data['name']}")
+    db.commit()
+    return created
+
+
+def seed_employees(db, departments):
+    employees = [
+        {
+            "first_name": "Sarah",
+            "last_name": "Connor",
+            "email": "sarah@hrms.com",
+            "job_title": "Senior Engineer",
+            "department_id": departments[0].id,
+            "hire_date": date(2022, 3, 15),
+            "salary": 95000.00,
+            "status": EmploymentStatus.active,
+        },
+        {
+            "first_name": "Mike",
+            "last_name": "Ross",
+            "email": "mike@hrms.com",
+            "job_title": "HR Specialist",
+            "department_id": departments[1].id,
+            "hire_date": date(2021, 7, 1),
+            "salary": 65000.00,
+            "status": EmploymentStatus.active,
+        },
+        {
+            "first_name": "Priya",
+            "last_name": "Sharma",
+            "email": "priya@hrms.com",
+            "job_title": "Financial Analyst",
+            "department_id": departments[2].id,
+            "hire_date": date(2023, 1, 10),
+            "salary": 72000.00,
+            "status": EmploymentStatus.active,
+        },
+    ]
+    for emp_data in employees:
+        existing = db.query(Employee).filter(
+            Employee.email == emp_data["email"]
+        ).first()
+        if existing:
+            print(f"  skipping employee {emp_data['email']} — already exists")
+            continue
+        emp = Employee(**emp_data)
+        db.add(emp)
+        print(f"  created employee: {emp_data['first_name']} {emp_data['last_name']}")
+    db.commit()
+
+
+# update your main block at the bottom:
+if __name__ == "__main__":
+    db = SessionLocal()
+    print("\nSeeding users...")
+    seed_users()
+    print("\nSeeding departments...")
+    depts = seed_departments(db)
+    print("\nSeeding employees...")
+    seed_employees(db, depts)
+    db.close()
+    print("\nAll done.")
