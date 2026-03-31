@@ -36,6 +36,7 @@ class Employee(Base):
         default=EmploymentStatus.active,
         nullable=False,
     )
+    avatar_url = Column(String, nullable=True)
 
     # links to the User account (optional — employee may not have login)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, unique=True)

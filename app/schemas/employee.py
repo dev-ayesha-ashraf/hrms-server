@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from datetime import date, datetime
-from typing import Optional
+from typing import List, Optional
 from app.models.employee import EmploymentStatus
 
 
@@ -41,7 +41,6 @@ class EmployeeUpdate(BaseModel):
     status: Optional[EmploymentStatus] = None
 
 
-# what goes OUT — includes nested department info
 class EmployeeResponse(BaseModel):
     id: int
     first_name: str
@@ -50,11 +49,20 @@ class EmployeeResponse(BaseModel):
     phone: Optional[str]
     date_of_birth: Optional[date]
     job_title: str
-    department: Optional[DepartmentBasic]   # nested object, not just an ID
+    department: Optional[DepartmentBasic]
     hire_date: date
     salary: float
     status: EmploymentStatus
+    avatar_url: Optional[str] = None    # ← add this
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class PaginatedEmployeeResponse(BaseModel):
+    total: int
+    page: int
+    limit: int
+    pages: int
+    data: List[EmployeeResponse]

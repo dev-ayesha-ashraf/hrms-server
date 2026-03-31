@@ -18,6 +18,9 @@ from app.database import Base
 from app.models import user
 from app.models import employee    # ← ADD
 from app.models import department  # ← ADD
+from app.models import leave_request
+from app.models import attendance  
+from app.models import payroll     
 
 target_metadata = Base.metadata
 

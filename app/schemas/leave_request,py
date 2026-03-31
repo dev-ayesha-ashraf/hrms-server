@@ -1,0 +1,63 @@
+from pydantic import BaseModel, model_validator
+from datetime import date, datetime
+from typing import Optional
+from app.models.leave_request import LeaveType, LeaveStatus
+
+
+class LeaveRequestCreate(BaseModel):
+    leave_type: LeaveType
+    from_date: date
+    to_date: date
+    reason: Optional[str] = None
+
+    # validate dates make sense before hitting the DB
+    @model_validator(mode="after")
+    def check_dates(self):
+        if self.to_date < self.from_date:
+            raise ValueError("to_date cannot be before from_date")
+        if self.from_date < date.today():
+            raise ValueError("Cannot request leave in the past")
+        return self
+
+
+class LeaveStatusUpdate(BaseModel):
+    status: LeaveStatus    # approved, rejected, or cancelled
+    review_note: Optional[str] = None
+
+
+# nested employee info for the response
+class EmployeeBasic(BaseModel):
+    id: int
+    first_name: str
+    last_name: str
+    job_title: str
+
+    class Config:
+        from_attributes = True
+
+
+# nested reviewer info
+class ReviewerBasic(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
+class LeaveRequestResponse(BaseModel):
+    id: int
+    employee: EmployeeBasic
+    leave_type: LeaveType
+    from_date: date
+    to_date: date
+    reason: Optional[str]
+    status: LeaveStatus
+    reviewed_by: Optional[ReviewerBasic]
+    reviewed_at: Optional[datetime]
+    review_note: Optional[str]
+    created_at: datetime
+    total_days: int = 0    # computed field
+
+    class Config:
+        from_attributes = True

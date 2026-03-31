@@ -86,8 +86,12 @@ def seed_departments(db):
     db.commit()
     return created
 
-
 def seed_employees(db, departments):
+    # fetch users to link them
+    admin_user = db.query(User).filter(User.email == "admin@hrms.com").first()
+    hr_user = db.query(User).filter(User.email == "hr@hrms.com").first()
+    emp_user = db.query(User).filter(User.email == "employee@hrms.com").first()
+
     employees = [
         {
             "first_name": "Sarah",
@@ -98,6 +102,7 @@ def seed_employees(db, departments):
             "hire_date": date(2022, 3, 15),
             "salary": 95000.00,
             "status": EmploymentStatus.active,
+            "user_id": admin_user.id if admin_user else None,
         },
         {
             "first_name": "Mike",
@@ -108,31 +113,36 @@ def seed_employees(db, departments):
             "hire_date": date(2021, 7, 1),
             "salary": 65000.00,
             "status": EmploymentStatus.active,
+            "user_id": hr_user.id if hr_user else None,
         },
         {
-            "first_name": "Priya",
-            "last_name": "Sharma",
-            "email": "priya@hrms.com",
-            "job_title": "Financial Analyst",
-            "department_id": departments[2].id,
+            "first_name": "John",
+            "last_name": "Employee",
+            "email": "john@hrms.com",
+            "job_title": "Junior Developer",
+            "department_id": departments[0].id,
             "hire_date": date(2023, 1, 10),
-            "salary": 72000.00,
+            "salary": 55000.00,
             "status": EmploymentStatus.active,
+            "user_id": emp_user.id if emp_user else None,
         },
     ]
+
     for emp_data in employees:
         existing = db.query(Employee).filter(
             Employee.email == emp_data["email"]
         ).first()
         if existing:
-            print(f"  skipping employee {emp_data['email']} — already exists")
+            # update user_id if not already set
+            if not existing.user_id and emp_data.get("user_id"):
+                existing.user_id = emp_data["user_id"]
+                db.commit()
+            print(f"  skipping {emp_data['email']} — already exists")
             continue
         emp = Employee(**emp_data)
         db.add(emp)
         print(f"  created employee: {emp_data['first_name']} {emp_data['last_name']}")
     db.commit()
-
-
 # update your main block at the bottom:
 if __name__ == "__main__":
     db = SessionLocal()
