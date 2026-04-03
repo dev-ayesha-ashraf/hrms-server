@@ -15,6 +15,7 @@ from app.schemas.leave_request import (
 )
 from app.utils.oauth2 import get_current_user
 from app.utils.permissions import require_roles
+from app.utils.notifications import notify_all_hr_and_admins, notify_user
 
 router = APIRouter(prefix="/leave-requests", tags=["Leave Requests"])
 
@@ -132,6 +133,18 @@ def create_leave_request(
         reason=data.reason,
     )
     db.add(leave)
+    db.flush()
+    # tell HR someone submitted leave
+    notify_all_hr_and_admins(
+        db=db,
+        title="New Leave Request",
+        message=(
+            f"{employee.first_name} {employee.last_name} requested "
+            f"{data.leave_type} leave from {data.from_date} to {data.to_date}."
+        ),
+        type="info",
+        link="/leave-requests",
+    )
     db.commit()
     db.refresh(leave)
     return build_response(leave)
@@ -179,13 +192,36 @@ def update_leave_status(
                 status_code=400,
                 detail=f"Cannot change status of a {leave.status} request"
             )
+        # notify the employee if their request was decided
+        if data.status in [LeaveStatus.approved, LeaveStatus.rejected]:
+            # find the user linked to this employee
+            employee_user = db.query(User).filter(
+                User.id == leave.employee.user_id
+            ).first() if leave.employee.user_id else None
+
+            if employee_user:
+                is_approved = data.status == LeaveStatus.approved
+                notify_user(
+                    db=db,
+                    user_id=employee_user.id,
+                    title=f"Leave Request {data.status.capitalize()}",
+                    message=(
+                        f"Your {leave.leave_type} leave request "
+                        f"({leave.from_date} to {leave.to_date}) "
+                        f"has been {data.status}."
+                        + (f" Note: {data.review_note}" if data.review_note else "")
+                    ),
+                    type="success" if is_approved else "warning",
+                    link="/leave-requests",
+                )
 
         # record who reviewed it and when
         leave.reviewed_by_id = current_user.id
         leave.reviewed_at = datetime.utcnow()
         leave.review_note = data.review_note
-
+        
     leave.status = data.status
+    
     db.commit()
     db.refresh(leave)
     return build_response(leave)

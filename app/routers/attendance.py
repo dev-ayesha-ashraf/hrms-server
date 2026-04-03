@@ -1,7 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
+import csv
+from io import StringIO
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, extract
-from typing import List
+from typing import List, Optional
 from datetime import datetime, date
 from decimal import Decimal
 
@@ -194,6 +197,52 @@ def get_all_attendance(
 
     records = query.order_by(Attendance.date.desc()).all()
     return records
+
+
+# ── EXPORT ATTENDANCE AS CSV — HR/Admin only ──────────────
+@router.get("/export/csv")
+def export_attendance_csv(
+    month: Optional[int] = Query(default=None),
+    year: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.hr)),
+):
+    query = db.query(Attendance)
+
+    if month and year:
+        query = query.filter(
+            and_(
+                extract("month", Attendance.date) == month,
+                extract("year", Attendance.date) == year,
+            )
+        )
+
+    records = query.order_by(Attendance.date.asc()).all()
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID", "Employee", "Date", "Clock In", "Clock Out",
+        "Hours Worked", "Note",
+    ])
+    for rec in records:
+        writer.writerow([
+            rec.id,
+            f"{rec.employee.first_name} {rec.employee.last_name}",
+            rec.date,
+            rec.clock_in.strftime("%H:%M:%S") if rec.clock_in else "",
+            rec.clock_out.strftime("%H:%M:%S") if rec.clock_out else "",
+            rec.hours_worked if rec.hours_worked is not None else "",
+            rec.note or "",
+        ])
+
+    period = f"_{year}_{str(month).zfill(2)}" if month and year else ""
+    csv_bytes = output.getvalue().encode("utf-8-sig")
+    return StreamingResponse(
+        iter([csv_bytes]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=attendance{period}.csv"},
+    )
 
 
 # ── TODAY'S PRESENT EMPLOYEES — HR/Admin only ─────────────

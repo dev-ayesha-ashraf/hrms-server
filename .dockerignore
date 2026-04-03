@@ -1,0 +1,30 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.local
+.env.*.local
+.git/
+.gitignore
+.vscode/
+*.pem
+alembic/versions/__pycache__/
+
+# Docs / extras
+*.md
+LICENSE
+
+# Test artifacts
+tests/
+test_*
+*_test.py
+pytest.ini
+.pytest_cache/
+coverage/
+.coverage
+
+# OS junk
+*.DS_Store
+Thumbs.db

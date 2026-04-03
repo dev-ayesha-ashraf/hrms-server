@@ -1,11 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
+from fastapi.responses import StreamingResponse
+import csv
 import shutil
 import uuid
 import os
+from io import StringIO
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
+from app.config import settings
 from app.database import get_db
 from app.models.department import Department  # noqa: F401
 from app.models.employee import Employee
@@ -14,6 +18,7 @@ from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeRespons
 from app.utils.oauth2 import get_current_user
 from app.utils.permissions import require_roles
 from app.models.user import User
+from app.utils.notifications import notify_all_hr_and_admins
 
 router = APIRouter(prefix="/employees", tags=["Employees"])
 
@@ -23,7 +28,7 @@ router = APIRouter(prefix="/employees", tags=["Employees"])
 def get_all_employees(
     search: Optional[str] = Query(default=None, description="Filter by name, email, or job title"),
     page: int = Query(default=1, ge=1, description="Page number (1-based)"),
-    limit: int = Query(default=10, ge=1, le=100, description="Results per page (max 100)"),
+    limit: int = Query(default=10, ge=1, le=1000, description="Results per page (max 1000)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -50,6 +55,42 @@ def get_all_employees(
         limit=limit,
         pages=pages,
         data=employees,
+    )
+
+
+# ── EXPORT ALL EMPLOYEES AS CSV — HR/Admin only ──────────
+@router.get("/export/csv")
+def export_employees_csv(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.hr)),
+):
+    employees = db.query(Employee).order_by(Employee.id).all()
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID", "First Name", "Last Name", "Email", "Phone",
+        "Job Title", "Department", "Hire Date", "Salary", "Status",
+    ])
+    for emp in employees:
+        writer.writerow([
+            emp.id,
+            emp.first_name,
+            emp.last_name,
+            emp.email,
+            emp.phone or "",
+            emp.job_title,
+            emp.department.name if emp.department else "",
+            emp.hire_date,
+            emp.salary,
+            emp.status.value,
+        ])
+
+    csv_bytes = output.getvalue().encode("utf-8-sig")  # BOM for Excel compatibility
+    return StreamingResponse(
+        iter([csv_bytes]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=employees.csv"},
     )
 
 
@@ -80,6 +121,14 @@ def create_employee(
 
     employee = Employee(**data.model_dump())
     db.add(employee)
+    db.flush()
+    notify_all_hr_and_admins(
+        db=db,
+        title="New Employee Added",
+        message=f"{data.first_name} {data.last_name} has joined as {data.job_title}.",
+        type="success",
+        link="/employees",
+    )
     db.commit()
     db.refresh(employee)
     return employee
@@ -170,7 +219,7 @@ async def upload_avatar(
         f.write(contents)
 
     # save the public URL to the database
-    employee.avatar_url = f"http://127.0.0.1:8000/uploads/avatars/{unique_filename}"
+    employee.avatar_url = f"{settings.BASE_URL}/uploads/avatars/{unique_filename}"
     db.commit()
     db.refresh(employee)
     return employee

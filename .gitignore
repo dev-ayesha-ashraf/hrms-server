@@ -2,4 +2,5 @@ app/uploads/avatars/*
 !app/uploads/avatars/.gitkeep
 __pycache__/
 *.pyc
+
 .env

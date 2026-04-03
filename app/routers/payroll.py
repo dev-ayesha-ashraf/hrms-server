@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, extract
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from fastapi.responses import StreamingResponse
-from io import BytesIO
+from io import BytesIO, StringIO
+import csv
 from app.utils.pdf_generator import generate_payslip_pdf
 
 from app.database import get_db
@@ -24,6 +25,8 @@ from app.utils.payroll_calculator import (
     calculate_payroll,
     get_working_days
 )
+from app.utils.notifications import notify_user
+from app.models.user import User as UserModel
 
 router = APIRouter(prefix="/payroll", tags=["Payroll"])
 
@@ -132,6 +135,20 @@ def generate_payroll_for_employee(
     db.add(payroll)
     db.commit()
     db.refresh(payroll)
+    # notify the employee their payslip is ready
+    if employee.user_id:
+        notify_user(
+        db=db,
+        user_id=employee.user_id,
+        title="Payslip Ready",
+        message=(
+            f"Your payslip for {payroll.month}/{payroll.year} "
+            f"is ready. Net pay: ${float(payroll.net_pay):,.2f}"
+        ),
+        type="success",
+        link=f"/payroll/{payroll.id}",
+    )
+    db.commit()
     return payroll
 
 
@@ -241,6 +258,65 @@ def get_my_payslips(
         .filter(Payroll.employee_id == employee.id)
         .order_by(Payroll.year.desc(), Payroll.month.desc())
         .all()
+    )
+
+
+# ── EXPORT PAYROLL AS CSV — HR/Admin only ────────────────
+@router.get("/export/csv")
+def export_payroll_csv(
+    month: Optional[int] = Query(default=None),
+    year: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.hr)),
+):
+    MONTHS = [
+        "", "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    ]
+
+    query = db.query(Payroll)
+    if month:
+        query = query.filter(Payroll.month == month)
+    if year:
+        query = query.filter(Payroll.year == year)
+    records = query.order_by(Payroll.year.desc(), Payroll.month.desc()).all()
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID", "Employee", "Job Title", "Period",
+        "Base Salary", "Overtime Bonus", "Performance Bonus", "Gross Salary",
+        "Income Tax", "Social Security", "Total Deductions", "Net Pay",
+        "Days Present", "Days Absent", "Overtime Hours",
+        "Status", "Paid At",
+    ])
+    for p in records:
+        writer.writerow([
+            p.id,
+            f"{p.employee.first_name} {p.employee.last_name}",
+            p.employee.job_title,
+            f"{MONTHS[p.month]} {p.year}",
+            p.base_salary,
+            p.overtime_bonus,
+            p.performance_bonus,
+            p.gross_salary,
+            p.income_tax,
+            p.social_security,
+            p.total_deductions,
+            p.net_pay,
+            p.days_present,
+            p.days_absent,
+            p.overtime_hours,
+            "Paid" if p.is_paid else "Pending",
+            p.paid_at.strftime("%Y-%m-%d") if p.paid_at else "",
+        ])
+
+    period = f"_{year}_{str(month).zfill(2)}" if month and year else ""
+    csv_bytes = output.getvalue().encode("utf-8-sig")
+    return StreamingResponse(
+        iter([csv_bytes]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=payroll{period}.csv"},
     )
 
 

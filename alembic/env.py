@@ -21,6 +21,7 @@ from app.models import department  # ← ADD
 from app.models import leave_request
 from app.models import attendance  
 from app.models import payroll     
+from app.models import notification    # ← add
 
 target_metadata = Base.metadata
 
