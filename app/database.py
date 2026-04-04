@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from supabase import create_client
+from supabase import create_client, Client
 import os
 from dotenv import load_dotenv
 

@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     # Dashboard stats cache TTL in seconds
     DASHBOARD_CACHE_TTL: int = 60
 
+    # Supabase
+    SUPABASE_URL: str = ""
+    SUPABASE_ANON_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
