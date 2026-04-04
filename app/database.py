@@ -12,7 +12,7 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 # The "engine" is the actual connection to PostgreSQL
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL, connect_args={"sslmode": "require"})
 
 # Every database operation happens inside a "session"
 # Think of it like opening and closing a conversation with the DB
